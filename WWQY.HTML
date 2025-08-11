@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>万物迁移工作流前端</title>
+    <style>
+        /* CSS 样式 */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f0f2f5; color: #333; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 1200px; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1, h2 { color: #1a1a1a; text-align: center; }
+        .main-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .image-section { border: 1px solid #ddd; padding: 15px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; }
+        canvas { border: 2px dashed #ccc; border-radius: 4px; cursor: crosshair; max-width: 100%; height: auto; }
+        .controls { display: flex; justify-content: space-around; align-items: center; width: 100%; margin-top: 10px; }
+        .controls input[type="file"] { display: none; }
+        .controls .upload-btn, .controls .clear-btn { padding: 8px 16px; border: 1px solid #007bff; background-color: #007bff; color: white; border-radius: 4px; cursor: pointer; transition: background-color 0.3s; }
+        .controls .clear-btn { background-color: #dc3545; border-color: #dc3545; }
+        .controls .upload-btn:hover { background-color: #0056b3; }
+        .controls .clear-btn:hover { background-color: #c82333; }
+        .parameters, .prompts { grid-column: 1 / -1; margin-top: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
+        .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .param-item { display: flex; flex-direction: column; }
+        .param-item label { margin-bottom: 5px; }
+        .param-item input[type="range"] { width: 100%; }
+        textarea { width: calc(100% - 20px); padding: 10px; height: 60px; border-radius: 4px; border: 1px solid #ccc; resize: vertical; }
+        .prompt-section { display: flex; gap: 20px; }
+        .prompt-item { flex: 1; }
+        #generate-btn { grid-column: 1 / -1; width: 100%; padding: 15px; font-size: 18px; font-weight: bold; background-color: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; transition: background-color 0.3s; }
+        #generate-btn:hover { background-color: #218838; }
+        #generate-btn:disabled { background-color: #aaa; cursor: not-allowed; }
+        #output-section { grid-column: 1 / -1; margin-top: 20px; text-align: center; }
+        #output-image { max-width: 100%; border-radius: 8px; margin-top: 10px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>万物迁移工作流前端</h1>
+    
+    <div class="main-layout">
+        <!-- Section 1: Image to Modify -->
+        <div class="image-section">
+            <h2>1. 上传要修改的图片</h2>
+            <p>在图片上绘制白色区域作为遮罩</p>
+            <canvas id="canvas-modify" width="512" height="512"></canvas>
+            <div class="controls">
+                <label for="upload-modify" class="upload-btn">上传图片</label>
+                <input type="file" id="upload-modify" accept="image/*">
+                <button id="clear-modify" class="clear-btn">清除遮罩</button>
+            </div>
+        </div>
+
+        <!-- Section 2: Reference Image -->
+        <div class="image-section">
+            <h2>2. 上传参考图片</h2>
+            <p>在图片上绘制白色区域作为参考遮罩</p>
+            <canvas id="canvas-reference" width="512" height="512"></canvas>
+            <div class="controls">
+                <label for="upload-reference" class="upload-btn">上传图片</label>
+                <input type="file" id="upload-reference" accept="image/*">
+                <button id="clear-reference" class="clear-btn">清除遮罩</button>
+            </div>
+        </div>
+
+        <!-- Section 3: Prompts -->
+        <div class="prompts">
+            <h2>3. 输入提示词 (可选)</h2>
+            <div class="prompt-section">
+                <div class="prompt-item">
+                    <label for="positive-prompt">正面提示词</label>
+                    <textarea id="positive-prompt" placeholder="希望在图像中看到的内容..."></textarea>
+                </div>
+                <div class="prompt-item">
+                    <label for="negative-prompt">负面提示词</label>
+                    <textarea id="negative-prompt" placeholder="不希望在图像中看到的内容..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 4: Parameters -->
+        <div class="parameters">
+            <h2>4. 调整参数</h2>
+            <div class="param-grid">
+                <div class="param-item"> <label for="param-steps">生成步数 (Steps): <span id="steps-value">20</span></label> <input type="range" id="param-steps" min="1" max="50" value="20"> </div>
+                <div class="param-item"> <label for="param-cfg">CFG: <span id="cfg-value">1.0</span></label> <input type="range" id="param-cfg" min="1" max="10" value="1" step="0.1"> </div>
+                <div class="param-item"> <label for="param-denoise">重绘幅度 (Denoise): <span id="denoise-value">1.0</span></label> <input type="range" id="param-denoise" min="0.1" max="1.0" value="1.0" step="0.05"> </div>
+                <div class="param-item"> <label for="param-guidance">引导强度 (Guidance): <span id="guidance-value">30</span></label> <input type="range" id="param-guidance" min="1" max="50" value="30" step="1"> </div>
+            </div>
+        </div>
+
+        <!-- Section 5: Generate Button -->
+        <button id="generate-btn">开始生成</button>
+
+        <!-- Section 6: Output -->
+        <div id="output-section">
+            <h2>生成结果</h2>
+            <img id="output-image" src="" alt="生成结果会显示在这里">
+            <p id="status-text"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+// JavaScript 逻辑 (V5.1 - 最终整合版)
+document.addEventListener('DOMContentLoaded', () => {
+    // --- 已配置好的2个关键信息 ---
+    const API_KEY = "d5c7fdee39f251590bd239fbd4991287"; 
+    const ACCESS_LINK = "https://pw307p2-ai121uaj3govkdz0l-z-custom.service.onethingrobot.com";
+    // ------------------------------------
+
+    // --- 已配置好的完整工作流JSON ---
+    const WORKFLOW_JSON = {
+      "1": { "inputs": { "seed": 6805331480364, "steps": 20, "cfg": 1, "sampler_name": "euler", "scheduler": "normal", "denoise": 1, "model": [ "4", 0 ], "positive": [ "17", 0 ], "negative": [ "17", 1 ], "latent_image": [ "17", 2 ] }, "class_type": "KSampler", "_meta": { "title": "K采样器" } },
+      "4": { "inputs": { "model": [ "63", 0 ] }, "class_type": "DifferentialDiffusion", "_meta": { "title": "差异扩散" } },
+      "9": { "inputs": { "text": "", "speak_and_recognation": true, "clip": [ "64", 0 ] }, "class_type": "CLIPTextEncode", "_meta": { "title": "CLIP文本编码器" } },
+      "10": { "inputs": { "text": "", "speak_and_recognation": true, "clip": [ "64", 0 ] }, "class_type": "CLIPTextEncode", "_meta": { "title": "CLIP文本编码器" } },
+      "14": { "inputs": { "image": "lvtu2.jpg" }, "class_type": "LoadImage", "_meta": { "title": "加载图像" } },
+      "16": { "inputs": { "guidance": 30, "conditioning": [ "9", 0 ] }, "class_type": "FluxGuidance", "_meta": { "title": "Flux引导" } },
+      "17": { "inputs": { "noise_mask": true, "positive": [ "47", 0 ], "negative": [ "10", 0 ], "vae": [ "18", 0 ], "pixels": [ "22", 0 ], "mask": [ "33", 0 ] }, "class_type": "InpaintModelConditioning", "_meta": { "title": "内补模型条件" } },
+      "18": { "inputs": { "vae_name": "ae.sft" }, "class_type": "VAELoader", "_meta": { "title": "VAE加载器" } },
+      "19": { "inputs": { "image": "pulid_flux_einstein.png" }, "class_type": "LoadImage", "_meta": { "title": "加载图像" } },
+      "20": { "inputs": { "samples": [ "1", 0 ], "vae": [ "18", 0 ] }, "class_type": "VAEDecode", "_meta": { "title": "VAE解码" } },
+      "22": { "inputs": { "direction": "right", "match_image_size": true, "image1": [ "144", 1 ], "image2": [ "129", 1 ] }, "class_type": "ImageConcanate", "_meta": { "title": "图像联结" } },
+      "25": { "inputs": { "value": 1024 }, "class_type": "ImpactInt", "_meta": { "title": "整数" } },
+      "29": { "inputs": { "width": [ "145", 0 ], "height": [ "145", 1 ], "red": 0, "green": 0, "blue": 0 }, "class_type": "Image Blank", "_meta": { "title": "空图像" } },
+      "30": { "inputs": { "direction": "right", "match_image_size": true, "image1": [ "29", 0 ], "image2": [ "31", 0 ] }, "class_type": "ImageConcanate", "_meta": { "title": "图像联结" } },
+      "31": { "inputs": { "mask": [ "129", 2 ] }, "class_type": "MaskToImage", "_meta": { "title": "遮罩到图像" } },
+      "33": { "inputs": { "channel": "red", "image": [ "30", 0 ] }, "class_type": "ImageToMask", "_meta": { "title": "图像到遮罩" } },
+      "47": { "inputs": { "downsampling_factor": 1, "downsampling_function": "area", "mode": "autocrop with mask", "weight": 1, "autocrop_margin": 0.1, "conditioning": [ "16", 0 ], "style_model": [ "83", 0 ], "clip_vision": [ "84", 0 ], "image": [ "144", 1 ], "mask": [ "144", 2 ] }, "class_type": "ReduxAdvanced", "_meta": { "title": "ReduxAdvanced" } },
+      "63": { "inputs": { "unet_name": "flux1-fill-dev.safetensors", "weight_dtype": "fp8_e4m3fn" }, "class_type": "UNETLoader", "_meta": { "title": "UNET加载器" } },
+      "64": { "inputs": { "clip_name1": "clip_l.safetensors", "clip_name2": "t5xxl_fp8_e4m3fn.safetensors", "type": "flux", "device": "default" }, "class_type": "DualCLIPLoader", "_meta": { "title": "双CLIP加载器" } },
+      "83": { "inputs": { "style_model_name": "flux1-redux-dev.safetensors" }, "class_type": "StyleModelLoader", "_meta": { "title": "风格模型加载器" } },
+      "84": { "inputs": { "clip_name": "sigclip_vision_patch14_384.safetensors" }, "class_type": "CLIPVisionLoader", "_meta": { "title": "CLIP视觉加载器" } },
+      "101": { "inputs": { "width": [ "146", 0 ], "height": [ "146", 1 ], "color": "#FFFFFF" }, "class_type": "LayerUtility: ColorImage", "_meta": { "title": "纯色图像" } },
+      "102": { "inputs": { "direction": "right", "match_image_size": true, "image1": [ "29", 0 ], "image2": [ "101", 0 ] }, "class_type": "ImageConcanate", "_meta": { "title": "图像联结" } },
+      "103": { "inputs": { "channel": "red", "image": [ "102", 0 ] }, "class_type": "ImageToMask", "_meta": { "title": "图像到遮罩" } },
+      "104": { "inputs": { "image_crop_multi": 1, "mask_crop_multi": 1, "bbox_smooth_alpha": 1, "image": [ "20", 0 ], "mask": [ "103", 0 ] }, "class_type": "easy imageCropFromMask", "_meta": { "title": "遮罩裁剪图像" } },
+      "129": { "inputs": { "context_expand_pixels": 20, "context_expand_factor": 1, "fill_mask_holes": true, "blur_mask_pixels": 16, "invert_mask": false, "blend_pixels": 16, "rescale_algorithm": "bicubic", "mode": "forced size", "force_width": [ "25", 0 ], "force_height": [ "25", 0 ], "rescale_factor": 1, "min_width": 512, "min_height": 512, "max_width": 768, "max_height": 768, "padding": 32, "image": [ "19", 0 ], "mask": [ "19", 1 ] }, "class_type": "InpaintCrop", "_meta": { "title": "局部重绘（裁剪）" } },
+      "130": { "inputs": { "rescale_algorithm": "bislerp", "stitch": [ "129", 0 ], "inpainted_image": [ "104", 0 ] }, "class_type": "InpaintStitch", "_meta": { "title": "局部重绘（接缝）" } },
+      "131": { "inputs": { "images": [ "130", 0 ] }, "class_type": "PreviewImage", "_meta": { "title": "预览图像" } },
+      "144": { "inputs": { "context_expand_pixels": 20, "context_expand_factor": 1, "fill_mask_holes": true, "blur_mask_pixels": 16, "invert_mask": false, "blend_pixels": 16, "rescale_algorithm": "bicubic", "mode": "forced size", "force_width": [ "25", 0 ], "force_height": [ "25", 0 ], "rescale_factor": 1, "min_width": 512, "min_height": 512, "max_width": 768, "max_height": 768, "padding": 32, "image": [ "14", 0 ], "mask": [ "14", 1 ] }, "class_type": "InpaintCrop", "_meta": { "title": "局部重绘（裁剪）" } },
+      "145": { "inputs": { "image": [ "144", 1 ] }, "class_type": "GetImageSize+", "_meta": { "title": "获取图像尺寸" } },
+      "146": { "inputs": { "image": [ "129", 1 ] }, "class_type": "GetImageSize+", "_meta": { "title": "获取图像尺寸" } }
+    };
+    // ------------------------------------
+
+    const API_ENDPOINT = `${ACCESS_LINK}/onething-ai/v1/workflows/run`;
+    const elements = {};
+    function setupCanvas(config){config.ctx=config.canvas.getContext('2d');config.upload.addEventListener('change',e=>{const file=e.target.files[0];if(file){const reader=new FileReader();reader.onload=event=>{const img=new Image();img.onload=()=>{config.image=img;redrawCanvas(config);};img.src=event.target.result;};reader.readAsDataURL(file)}});config.clearBtn.addEventListener('click',()=>{if(config.image){redrawCanvas(config)}else{config.ctx.clearRect(0,0,config.canvas.width,config.canvas.height)}});config.canvas.addEventListener('mousedown',e=>{if(!config.image)return;config.isDrawing=true;draw(e,config)});config.canvas.addEventListener('mousemove',e=>{if(config.isDrawing){draw(e,config)}});config.canvas.addEventListener('mouseup',()=>config.isDrawing=false);config.canvas.addEventListener('mouseout',()=>config.isDrawing=false)}
+    function redrawCanvas(config){config.ctx.clearRect(0,0,config.canvas.width,config.canvas.height);if(config.image){config.ctx.drawImage(config.image,0,0,config.canvas.width,config.canvas.height)}}
+    function draw(e,config){const rect=config.canvas.getBoundingClientRect();const x=(e.clientX-rect.left)*(config.canvas.width/rect.width);const y=(e.clientY-rect.top)*(config.canvas.height/rect.height);config.ctx.fillStyle='rgba(255, 255, 255, 0.7)';config.ctx.strokeStyle='white';config.ctx.lineWidth=20;config.ctx.lineCap='round';config.ctx.lineJoin='round';config.ctx.globalCompositeOperation='source-over';config.ctx.lineTo(x,y);config.ctx.stroke();config.ctx.beginPath();config.ctx.moveTo(x,y)}
+    function setupParamSlider(input,display){input.addEventListener('input',()=>{display.textContent=input.value})}
+    const domElements = { modify: { canvas: document.getElementById('canvas-modify'), upload: document.getElementById('upload-modify'), clearBtn: document.getElementById('clear-modify'), ctx: null, image: null, isDrawing: false }, reference: { canvas: document.getElementById('canvas-reference'), upload: document.getElementById('upload-reference'), clearBtn: document.getElementById('clear-reference'), ctx: null, image: null, isDrawing: false }, prompts: { positive: document.getElementById('positive-prompt'), negative: document.getElementById('negative-prompt') }, params: { steps: document.getElementById('param-steps'), stepsValue: document.getElementById('steps-value'), cfg: document.getElementById('param-cfg'), cfgValue: document.getElementById('cfg-value'), denoise: document.getElementById('param-denoise'), denoiseValue: document.getElementById('denoise-value'), guidance: document.getElementById('param-guidance'), guidanceValue: document.getElementById('guidance-value') }, generateBtn: document.getElementById('generate-btn'), outputImage: document.getElementById('output-image'), statusText: document.getElementById('status-text') };
+    Object.assign(elements, domElements);
+    setupCanvas(elements.modify); setupCanvas(elements.reference); setupParamSlider(elements.params.steps, elements.params.stepsValue); setupParamSlider(elements.params.cfg, elements.params.cfgValue); setupParamSlider(elements.params.denoise, elements.params.denoiseValue); setupParamSlider(elements.params.guidance, elements.params.guidanceValue);
+    
+    elements.generateBtn.addEventListener('click', async () => {
+        if (!elements.modify.image || !elements.reference.image) { alert('请上传“要修改的图片”和“参考图片”！'); return; }
+        if (!WORKFLOW_JSON || Object.keys(WORKFLOW_JSON).length === 0) { alert('错误：工作流JSON为空，请检查代码！'); return; }
+
+        elements.statusText.textContent = '正在准备数据并提交任务...';
+        elements.generateBtn.disabled = true;
+        elements.outputImage.style.display = 'none';
+
+        const getCanvasAsBase64 = (canvas) => canvas.toDataURL('image/png');
+        const modifyImageBase64 = getCanvasAsBase64(elements.modify.canvas);
+        const referenceImageBase64 = getCanvasAsBase64(elements.reference.canvas);
+        
+        let dynamicWorkflow = JSON.parse(JSON.stringify(WORKFLOW_JSON));
+        
+        // 使用 Base64 替换节点 '14' 和 '19' 的输入。API会自动处理。
+        dynamicWorkflow["14"].inputs.image = modifyImageBase64;
+        dynamicWorkflow["19"].inputs.image = referenceImageBase64;
+        
+        dynamicWorkflow["9"].inputs.text = elements.prompts.positive.value;
+        dynamicWorkflow["10"].inputs.text = elements.prompts.negative.value;
+        dynamicWorkflow["1"].inputs.seed = Math.floor(Math.random() * 1e15);
+        dynamicWorkflow["1"].inputs.steps = parseInt(elements.params.steps.value);
+        dynamicWorkflow["1"].inputs.cfg = parseFloat(elements.params.cfg.value);
+        dynamicWorkflow["1"].inputs.denoise = parseFloat(elements.params.denoise.value);
+        dynamicWorkflow["16"].inputs.guidance = parseInt(elements.params.guidance.value);
+
+        const payload = {
+            workflow: dynamicWorkflow,
+            outputs: ["131"], 
+            base64: true 
+        };
+        
+        try {
+            elements.statusText.textContent = '任务已提交，请稍候...';
+            const response = await fetch(API_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`API 请求失败: ${errorData.message || response.statusText}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.code === 0 && result.data && result.data.outputs && result.data.outputs['131']) {
+                const outputData = result.data.outputs['131'];
+                const imageBase64 = outputData.images[0].base64;
+                elements.outputImage.src = `data:image/png;base64,${imageBase64}`;
+                elements.outputImage.style.display = 'block';
+                elements.statusText.textContent = '生成完成！';
+            } else {
+                throw new Error(`API返回数据格式不正确: ${JSON.stringify(result)}`);
+            }
+
+        } catch (error) {
+            console.error("生成过程中发生错误:", error);
+            elements.statusText.textContent = `错误: ${error.message}`;
+        } finally {
+            elements.generateBtn.disabled = false;
+        }
+    });
+});
+</script>
+</body>
+</html>
